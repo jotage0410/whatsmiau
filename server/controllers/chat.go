@@ -250,7 +250,7 @@ func (s *Chat) NumberExists(ctx echo.Context) error {
 
 // DeleteMessageForEveryone godoc
 // @Summary      Delete message for everyone
-// @Description  Revokes a message in the chat so it is deleted for all participants.
+// @Description  Revokes a message in the chat so it is deleted for all participants. Use remoteJid "status@broadcast" with fromMe true to delete one of the instance's own status updates.
 // @Tags         Chat
 // @Accept       json
 // @Produce      json
@@ -273,10 +273,14 @@ func (s *Chat) DeleteMessageForEveryone(ctx echo.Context) error {
 		return utils.HTTPFail(ctx, http.StatusBadRequest, err, "invalid request body")
 	}
 
-	remoteJid, err := numberToJid(request.RemoteJid)
+	remoteJid, err := revokeChatJid(request.RemoteJid)
 	if err != nil {
 		zap.L().Error("error converting remoteJid to jid", zap.Error(err))
 		return utils.HTTPFail(ctx, http.StatusBadRequest, err, "invalid remoteJid format")
+	}
+
+	if *remoteJid == types.StatusBroadcastJID && !request.FromMe {
+		return utils.HTTPFail(ctx, http.StatusBadRequest, nil, "only your own status updates can be deleted")
 	}
 
 	if !request.FromMe && remoteJid.Server == types.GroupServer && request.Participant == "" {

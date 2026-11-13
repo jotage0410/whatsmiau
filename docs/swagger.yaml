@@ -2435,6 +2435,8 @@ paths:
       consumes:
       - application/json
       description: Revokes a message in the chat so it is deleted for all participants.
+        Use remoteJid "status@broadcast" with fromMe true to delete one of the instance's
+        own status updates.
       operationId: deleteV1ChatDeleteMessageForEveryoneByInstance
       parameters:
       - description: Instance ID
@@ -4349,6 +4351,8 @@ paths:
       consumes:
       - application/json
       description: Revokes a message in the chat so it is deleted for all participants.
+        Use remoteJid "status@broadcast" with fromMe true to delete one of the instance's
+        own status updates.
       operationId: deleteV1InstanceByInstanceChatDeleteMessageForEveryone
       parameters:
       - description: Instance ID

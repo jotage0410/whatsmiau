@@ -154,7 +154,7 @@ const docTemplate = `{
                         "ApiKeyAuth": []
                     }
                 ],
-                "description": "Revokes a message in the chat so it is deleted for all participants.",
+                "description": "Revokes a message in the chat so it is deleted for all participants. Use remoteJid \"status@broadcast\" with fromMe true to delete one of the instance's own status updates.",
                 "consumes": [
                     "application/json"
                 ],
@@ -3338,7 +3338,7 @@ const docTemplate = `{
                         "ApiKeyAuth": []
                     }
                 ],
-                "description": "Revokes a message in the chat so it is deleted for all participants.",
+                "description": "Revokes a message in the chat so it is deleted for all participants. Use remoteJid \"status@broadcast\" with fromMe true to delete one of the instance's own status updates.",
                 "consumes": [
                     "application/json"
                 ],
