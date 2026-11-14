@@ -27,6 +27,7 @@ import (
 	"go.uber.org/zap"
 	"golang.org/x/net/context"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
 func b64(b []byte) string {
@@ -357,6 +358,25 @@ func extractExtFromFile(fileName, mimeType string, file *os.File) string {
 
 func canIgnoreMessage(msg *events.Message) bool {
 	return strings.Contains(msg.Info.Chat.String(), "status")
+}
+
+// isKeyDistributionOnly reports whether a message only carries a sender key distribution (and its
+// context info). whatsmeow emits it as a message of its own when a group stanza brings the sender
+// key along with the content, which arrives in a second message; it has nothing to show.
+func isKeyDistributionOnly(msg *waE2E.Message) bool {
+	if msg.GetSenderKeyDistributionMessage() == nil {
+		return false
+	}
+	only := true
+	msg.ProtoReflect().Range(func(fd protoreflect.FieldDescriptor, _ protoreflect.Value) bool {
+		switch fd.Name() {
+		case "senderKeyDistributionMessage", "messageContextInfo":
+			return true
+		}
+		only = false
+		return false
+	})
+	return only
 }
 
 // shouldSaveMedia returns true if message media must be persisted in the file storage.
