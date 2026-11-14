@@ -154,7 +154,7 @@ const docTemplate = `{
                         "ApiKeyAuth": []
                     }
                 ],
-                "description": "Revokes a message in the chat so it is deleted for all participants. Use remoteJid \"status@broadcast\" with fromMe true to delete one of the instance's own status updates.",
+                "description": "Revokes a message in the chat so it is deleted for all participants. Use remoteJid \"status@broadcast\" with fromMe true to delete one of the instance's own status updates, and remoteJid set to the group with fromMe and groupStatus true to delete one of its group status updates (a plain revoke leaves a group status up).",
                 "consumes": [
                     "application/json"
                 ],
@@ -3402,7 +3402,7 @@ const docTemplate = `{
                         "ApiKeyAuth": []
                     }
                 ],
-                "description": "Revokes a message in the chat so it is deleted for all participants. Use remoteJid \"status@broadcast\" with fromMe true to delete one of the instance's own status updates.",
+                "description": "Revokes a message in the chat so it is deleted for all participants. Use remoteJid \"status@broadcast\" with fromMe true to delete one of the instance's own status updates, and remoteJid set to the group with fromMe and groupStatus true to delete one of its group status updates (a plain revoke leaves a group status up).",
                 "consumes": [
                     "application/json"
                 ],
@@ -8450,6 +8450,10 @@ const docTemplate = `{
             ],
             "properties": {
                 "fromMe": {
+                    "type": "boolean"
+                },
+                "groupStatus": {
+                    "description": "GroupStatus deletes one of the instance's group status updates (posted with sendGroupStatus):\nremoteJid is the group and fromMe is true. A plain revoke would leave the status up.",
                     "type": "boolean"
                 },
                 "id": {

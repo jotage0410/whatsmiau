@@ -282,6 +282,11 @@ definitions:
     properties:
       fromMe:
         type: boolean
+      groupStatus:
+        description: |-
+          GroupStatus deletes one of the instance's group status updates (posted with sendGroupStatus):
+          remoteJid is the group and fromMe is true. A plain revoke would leave the status up.
+        type: boolean
       id:
         type: string
       participant:
@@ -2508,7 +2513,9 @@ paths:
       - application/json
       description: Revokes a message in the chat so it is deleted for all participants.
         Use remoteJid "status@broadcast" with fromMe true to delete one of the instance's
-        own status updates.
+        own status updates, and remoteJid set to the group with fromMe and groupStatus
+        true to delete one of its group status updates (a plain revoke leaves a group
+        status up).
       operationId: deleteV1ChatDeleteMessageForEveryoneByInstance
       parameters:
       - description: Instance ID
@@ -4473,7 +4480,9 @@ paths:
       - application/json
       description: Revokes a message in the chat so it is deleted for all participants.
         Use remoteJid "status@broadcast" with fromMe true to delete one of the instance's
-        own status updates.
+        own status updates, and remoteJid set to the group with fromMe and groupStatus
+        true to delete one of its group status updates (a plain revoke leaves a group
+        status up).
       operationId: deleteV1InstanceByInstanceChatDeleteMessageForEveryone
       parameters:
       - description: Instance ID

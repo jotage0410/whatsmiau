@@ -78,9 +78,10 @@ func TestGroupStatusSend(t *testing.T) {
 				return
 			}
 			del := do(t, http.MethodDelete, fmt.Sprintf("/v1/chat/deleteMessageForEveryone/%s", instanceID(t)), map[string]any{
-				"id":        result.Key.ID,
-				"remoteJid": result.Key.RemoteJid,
-				"fromMe":    true,
+				"id":          result.Key.ID,
+				"remoteJid":   result.Key.RemoteJid,
+				"fromMe":      true,
+				"groupStatus": true,
 			})
 			defer drainClose(del)
 			assert.Equal(t, http.StatusOK, del.StatusCode)

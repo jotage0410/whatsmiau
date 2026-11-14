@@ -55,3 +55,18 @@ func TestRevokeChatJidKeepsNumbersAndGroups(t *testing.T) {
 		t.Errorf("revokeChatJid(other@broadcast) expected an error from numberToJid, got nil")
 	}
 }
+
+func TestGroupStatusRevokeError(t *testing.T) {
+	group := types.NewJID("120363000000000001", types.GroupServer)
+	if msg := groupStatusRevokeError(group, true); msg != "" {
+		t.Errorf("own group status: %q, want valid", msg)
+	}
+	if msg := groupStatusRevokeError(group, false); msg == "" {
+		t.Error("another member's group status was accepted")
+	}
+	for _, jid := range []types.JID{types.StatusBroadcastJID, types.NewJID("5511999999999", types.DefaultUserServer)} {
+		if msg := groupStatusRevokeError(jid, true); msg == "" {
+			t.Errorf("groupStatus with remoteJid %s was accepted", jid)
+		}
+	}
+}
