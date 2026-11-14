@@ -7,6 +7,7 @@ import (
 
 	"github.com/puzpuzpuz/xsync/v4"
 	"go.mau.fi/whatsmeow"
+	"go.mau.fi/whatsmeow/proto/waCommon"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
@@ -75,6 +76,22 @@ func path(body map[string]any, keys ...string) any {
 	return cur
 }
 
+// The status updates contacts post are not carried, whatever their content.
+func TestStatusUpdatesOfContactsAreNotEmitted(t *testing.T) {
+	s, instance, collect := statusEventsHarness(t, "MESSAGES_UPSERT", "MESSAGES_DELETE")
+	for name, msg := range map[string]*waE2E.Message{
+		"text":  {ExtendedTextMessage: &waE2E.ExtendedTextMessage{Text: proto.String("bom dia")}},
+		"image": {ImageMessage: &waE2E.ImageMessage{Caption: proto.String("foto")}},
+		"revoke": {ProtocolMessage: &waE2E.ProtocolMessage{Type: waE2E.ProtocolMessage_REVOKE.Enum(),
+			Key: &waCommon.MessageKey{RemoteJID: proto.String("status@broadcast"), ID: proto.String("X")}}},
+	} {
+		s.handleMessageEvent("inst", instance, incoming(types.StatusBroadcastJID, "S-"+name, msg), enabledWebhookEvents(instance.Webhook))
+	}
+	if got := collect(); len(got) != 0 {
+		t.Fatalf("status updates of contacts reached the webhook: %v", got)
+	}
+}
+
 // A group stanza can bring the sender key in a pairwise part, which whatsmeow emits as a message of
 // its own next to the real content. It used to reach the webhook as messageType "unknown".
 func TestKeyDistributionOnlyIsNotEmitted(t *testing.T) {
@@ -92,5 +109,31 @@ func TestKeyDistributionOnlyIsNotEmitted(t *testing.T) {
 	got := collect()
 	if len(got) != 1 || path(got[0], "data", "messageType") != "conversation" {
 		t.Fatalf("webhooks = %v, want one conversation", got)
+	}
+}
+
+// Whoever views a status sends a read receipt from status@broadcast (or the group), which the
+// webhook carries as messages.update READ with the viewer as participant.
+func TestStatusViewIsEmittedAsRead(t *testing.T) {
+	s, instance, collect := statusEventsHarness(t, "MESSAGES_UPDATE")
+	group := types.NewJID("120363000000000001", types.GroupServer)
+	for _, chat := range []types.JID{types.StatusBroadcastJID, group} {
+		s.handleReceiptEvent("inst", instance, &events.Receipt{
+			MessageSource: types.MessageSource{Chat: chat, Sender: testStatusViewer, IsGroup: true},
+			MessageIDs:    []types.MessageID{"3EB0STATUS"},
+			Timestamp:     testStatusAt,
+			Type:          types.ReceiptTypeRead,
+		}, enabledWebhookEvents(instance.Webhook))
+	}
+	got := collect()
+	if len(got) != 2 {
+		t.Fatalf("got %d webhooks, want 2: %v", len(got), got)
+	}
+	for i, chat := range []string{"status@broadcast", group.String()} {
+		if path(got[i], "event") != "messages.update" || path(got[i], "data", "status") != "READ" ||
+			path(got[i], "data", "keyId") != "3EB0STATUS" || path(got[i], "data", "remoteJid") != chat ||
+			path(got[i], "data", "participant") != testStatusViewer.String() {
+			t.Errorf("webhook %d = %v", i, got[i])
+		}
 	}
 }
