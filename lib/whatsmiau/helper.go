@@ -356,8 +356,13 @@ func extractExtFromFile(fileName, mimeType string, file *os.File) string {
 	return strings.TrimPrefix(ext, ".")
 }
 
+// canIgnoreMessage returns true for messages the webhook does not carry: the status updates of
+// contacts (status@broadcast). Reactions to the instance's own status updates are carried.
 func canIgnoreMessage(msg *events.Message) bool {
-	return strings.Contains(msg.Info.Chat.String(), "status")
+	if !strings.Contains(msg.Info.Chat.String(), "status") {
+		return false
+	}
+	return !(msg.Info.Chat == types.StatusBroadcastJID && msg.Message.GetReactionMessage() != nil)
 }
 
 // isKeyDistributionOnly reports whether a message only carries a sender key distribution (and its

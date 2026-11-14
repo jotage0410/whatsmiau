@@ -64,6 +64,16 @@ func incoming(chat types.JID, id string, msg *waE2E.Message) *events.Message {
 	return evt.UnwrapRaw()
 }
 
+func statusReaction(chat types.JID, statusID, emoji string) *waE2E.Message {
+	return &waE2E.Message{
+		ReactionMessage: &waE2E.ReactionMessage{
+			Key:  &waCommon.MessageKey{RemoteJID: proto.String(chat.String()), FromMe: proto.Bool(true), ID: proto.String(statusID)},
+			Text: proto.String(emoji),
+		},
+		MessageContextInfo: &waE2E.MessageContextInfo{},
+	}
+}
+
 func path(body map[string]any, keys ...string) any {
 	var cur any = body
 	for _, k := range keys {
@@ -74,6 +84,52 @@ func path(body map[string]any, keys ...string) any {
 		cur = m[k]
 	}
 	return cur
+}
+
+// A like on one of the instance's own status updates comes from status@broadcast; it is the only
+// thing from that chat the webhook carries.
+func TestStatusReactionIsEmittedAsReactionMessage(t *testing.T) {
+	s, instance, collect := statusEventsHarness(t, "MESSAGES_UPSERT")
+	s.handleMessageEvent("inst", instance, incoming(types.StatusBroadcastJID, "A566", statusReaction(types.StatusBroadcastJID, "3EB0STATUS", "💚")), enabledWebhookEvents(instance.Webhook))
+
+	got := collect()
+	if len(got) != 1 {
+		t.Fatalf("got %d webhooks, want 1: %v", len(got), got)
+	}
+	for _, check := range []struct {
+		path []string
+		want any
+	}{
+		{[]string{"event"}, "messages.upsert"},
+		{[]string{"data", "messageType"}, "reactionMessage"},
+		{[]string{"data", "key", "remoteJid"}, "status@broadcast"},
+		{[]string{"data", "key", "participant"}, testStatusViewer.String()},
+		{[]string{"data", "message", "reactionMessage", "text"}, "💚"},
+	} {
+		if v := path(got[0], check.path...); v != check.want {
+			t.Errorf("%v = %v, want %v", check.path, v, check.want)
+		}
+	}
+	if v := path(got[0], "data", "message", "reactionMessage", "key", "id"); v != "3EB0STATUS" {
+		t.Errorf("reaction key id = %v, want the status id", v)
+	}
+	if v := path(got[0], "data", "message", "reactionMessage", "key", "remoteJid"); v != "status@broadcast" {
+		t.Errorf("reaction key remoteJid = %v, want status@broadcast", v)
+	}
+}
+
+func TestGroupStatusReactionIsEmittedAsReactionMessage(t *testing.T) {
+	s, instance, collect := statusEventsHarness(t, "MESSAGES_UPSERT")
+	group := types.NewJID("120363000000000001", types.GroupServer)
+	s.handleMessageEvent("inst", instance, incoming(group, "A50E", statusReaction(group, "3EB0GROUPSTATUS", "💚")), enabledWebhookEvents(instance.Webhook))
+
+	got := collect()
+	if len(got) != 1 || path(got[0], "data", "messageType") != "reactionMessage" {
+		t.Fatalf("webhooks = %v, want one reactionMessage", got)
+	}
+	if v := path(got[0], "data", "message", "reactionMessage", "key", "id"); v != "3EB0GROUPSTATUS" {
+		t.Errorf("reaction key id = %v, want the group status id", v)
+	}
 }
 
 // The status updates contacts post are not carried, whatever their content.
