@@ -1,6 +1,50 @@
 {
     "basePath": "/",
     "definitions": {
+        "dto.BatchConnectionState": {
+            "enum": [
+                "open",
+                "connecting",
+                "qr-code",
+                "closed"
+            ],
+            "type": "string",
+            "x-enum-varnames": [
+                "BatchConnectionStateOpen",
+                "BatchConnectionStateConnecting",
+                "BatchConnectionStateQRCode",
+                "BatchConnectionStateClosed"
+            ]
+        },
+        "dto.BatchConnectionStatesRequest": {
+            "properties": {
+                "instanceNames": {
+                    "items": {
+                        "maxLength": 128,
+                        "minLength": 1,
+                        "type": "string"
+                    },
+                    "maxItems": 10000,
+                    "minItems": 1,
+                    "type": "array"
+                }
+            },
+            "required": [
+                "instanceNames"
+            ],
+            "type": "object"
+        },
+        "dto.BatchConnectionStatesResponse": {
+            "properties": {
+                "connectionStates": {
+                    "additionalProperties": {
+                        "$ref": "#/definitions/dto.BatchConnectionState"
+                    },
+                    "type": "object"
+                }
+            },
+            "type": "object"
+        },
         "dto.CallActionResponse": {
             "properties": {
                 "status": {
@@ -2243,6 +2287,15 @@
                     "type": "string"
                 },
                 "message": {
+                    "type": "string"
+                }
+            },
+            "type": "object"
+        },
+        "utils.HTTPMessageResponse": {
+            "properties": {
+                "message": {
+                    "example": "Request Entity Too Large",
                     "type": "string"
                 }
             },
@@ -5996,6 +6049,76 @@
                     }
                 ],
                 "summary": "Get instance connection state",
+                "tags": [
+                    "Instance"
+                ]
+            }
+        },
+        "/v1/instance/connectionStates": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "description": "Returns the current connection state of each requested instance. Accepts 1 to 10000 IDs, each 1 to 128 characters, with a 2 MiB body limit.",
+                "operationId": "postV1InstanceConnectionStates",
+                "parameters": [
+                    {
+                        "description": "Instance IDs",
+                        "in": "body",
+                        "name": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.BatchConnectionStatesRequest"
+                        }
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.BatchConnectionStatesResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.HTTPErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.AuthenticationErrorResponse"
+                        }
+                    },
+                    "413": {
+                        "description": "Request Entity Too Large",
+                        "schema": {
+                            "$ref": "#/definitions/utils.HTTPMessageResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/utils.HTTPErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.HTTPErrorResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "summary": "Get connection states for multiple instances",
                 "tags": [
                     "Instance"
                 ]
