@@ -13,6 +13,7 @@ import (
 
 // These verify if RedisInstance follows instances interface pattern
 var _ interfaces.InstanceRepository = (*RedisInstance)(nil)
+var _ interfaces.InstanceExistenceRepository = (*RedisInstance)(nil)
 
 var ErrorNotFound = errors.New("not found")
 var ErrorAlreadyExists = errors.New("instance already exists")
@@ -196,6 +197,40 @@ func (s *RedisInstance) List(ctx context.Context, id string) ([]models.Instance,
 	}
 
 	return instances, nil
+}
+
+func (s *RedisInstance) ExistingIDs(ctx context.Context, ids []string) (map[string]struct{}, error) {
+	existing := make(map[string]struct{}, len(ids))
+	if len(ids) == 0 {
+		return existing, nil
+	}
+
+	keys := make([]string, len(ids))
+	for index, id := range ids {
+		keys[index] = s.key(id)
+	}
+
+	values, err := s.db.MGet(ctx, keys...).Result()
+	if err != nil {
+		return nil, err
+	}
+
+	for index, value := range values {
+		if value == nil {
+			continue
+		}
+		raw, ok := value.(string)
+		if !ok {
+			continue
+		}
+		var instance models.Instance
+		if err := json.Unmarshal([]byte(raw), &instance); err != nil {
+			continue
+		}
+		existing[ids[index]] = struct{}{}
+	}
+
+	return existing, nil
 }
 
 func (s *RedisInstance) Delete(ctx context.Context, id string) error {

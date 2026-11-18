@@ -81,6 +81,29 @@ func TestDeleteReportsMissingInstance(t *testing.T) {
 	}
 }
 
+func TestExistingIDsUsesRequestedKeysAndSkipsMissingOrInvalidRecords(t *testing.T) {
+	repo, _, server := newTestRepository(t)
+	ctx := context.Background()
+	if err := repo.Create(ctx, &models.Instance{ID: "existing"}); err != nil {
+		t.Fatalf("create existing instance: %v", err)
+	}
+	server.Set(repo.key("invalid"), "not-json")
+
+	existing, err := repo.ExistingIDs(ctx, []string{"existing", "missing", "invalid"})
+	if err != nil {
+		t.Fatalf("ExistingIDs: %v", err)
+	}
+	if _, ok := existing["existing"]; !ok {
+		t.Fatal("existing record was not returned")
+	}
+	if _, ok := existing["missing"]; ok {
+		t.Fatal("missing record was returned")
+	}
+	if _, ok := existing["invalid"]; ok {
+		t.Fatal("invalid record was returned")
+	}
+}
+
 // TestUpdateOnlyTouchesSaveMediaWhenProvided guards the pointer semantics of SaveMedia.
 // The value under test is true on purpose: with false, an update that wrongly forced the
 // field would also produce false and the test would pass without detecting anything.
