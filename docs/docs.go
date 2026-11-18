@@ -2344,7 +2344,7 @@ const docTemplate = `{
                         "ApiKeyAuth": []
                     }
                 ],
-                "description": "Returns the current connection state of each requested instance. Accepts 1 to 10000 IDs, each 1 to 128 characters, with a 2 MiB body limit.",
+                "description": "Returns the current connection state of each existing requested instance. IDs not found in storage are omitted. Accepts 1 to 10000 IDs, each 1 to 128 characters, with a 2 MiB body limit.",
                 "consumes": [
                     "application/json"
                 ],
@@ -2399,6 +2399,12 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.HTTPErrorResponse"
+                        }
+                    },
+                    "501": {
+                        "description": "Not Implemented",
                         "schema": {
                             "$ref": "#/definitions/utils.HTTPErrorResponse"
                         }

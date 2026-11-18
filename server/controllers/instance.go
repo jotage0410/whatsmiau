@@ -271,7 +271,7 @@ const (
 // The Manager uses this endpoint for account-wide status summaries.
 //
 // @Summary      Get connection states for multiple instances
-// @Description  Returns the current connection state of each requested instance. Accepts 1 to 10000 IDs, each 1 to 128 characters, with a 2 MiB body limit.
+// @Description  Returns the current connection state of each existing requested instance. IDs not found in storage are omitted. Accepts 1 to 10000 IDs, each 1 to 128 characters, with a 2 MiB body limit.
 // @Tags         Instance
 // @Accept       json
 // @Produce      json
@@ -283,6 +283,7 @@ const (
 // @Failure      413   {object}  utils.HTTPMessageResponse
 // @Failure      422   {object}  utils.HTTPErrorResponse
 // @Failure      500   {object}  utils.HTTPErrorResponse
+// @Failure      501   {object}  utils.HTTPErrorResponse
 // @Router       /v1/instance/connectionStates [post]
 func (s *Instance) BatchConnectionStates(ctx echo.Context) error {
 	var request dto.BatchConnectionStatesRequest
@@ -293,8 +294,9 @@ func (s *Instance) BatchConnectionStates(ctx echo.Context) error {
 		return utils.HTTPFail(ctx, http.StatusBadRequest, errors.New("invalid connection state batch size"), "instanceNames must contain between 1 and 10000 IDs")
 	}
 
-	connectionStates := make(map[string]dto.BatchConnectionState, len(request.InstanceNames))
 	requestContext := ctx.Request().Context()
+	uniqueIDs := make([]string, 0, len(request.InstanceNames))
+	seenIDs := make(map[string]struct{}, len(request.InstanceNames))
 	for _, instanceID := range request.InstanceNames {
 		if requestContext.Err() != nil {
 			return nil
@@ -302,7 +304,32 @@ func (s *Instance) BatchConnectionStates(ctx echo.Context) error {
 		if strings.TrimSpace(instanceID) == "" || strings.TrimSpace(instanceID) != instanceID || utf8.RuneCountInString(instanceID) > maxBatchConnectionStateIDCharacters {
 			return utils.HTTPFail(ctx, http.StatusBadRequest, errors.New("invalid instance ID"), "instanceNames values must be 1 to 128 characters without surrounding whitespace")
 		}
-		if _, exists := connectionStates[instanceID]; exists {
+		if _, exists := seenIDs[instanceID]; exists {
+			continue
+		}
+		seenIDs[instanceID] = struct{}{}
+		uniqueIDs = append(uniqueIDs, instanceID)
+	}
+
+	existenceRepo, ok := s.repo.(interfaces.InstanceExistenceRepository)
+	if !ok {
+		return utils.HTTPFail(ctx, http.StatusNotImplemented, errors.New("instance repository does not support bulk existence checks"), "bulk instance lookup is not supported")
+	}
+	existingIDs, err := existenceRepo.ExistingIDs(requestContext, uniqueIDs)
+	if requestContext.Err() != nil {
+		return nil
+	}
+	if err != nil {
+		zap.L().Error("failed to check batch instance existence", zap.Error(err))
+		return utils.HTTPFail(ctx, http.StatusInternalServerError, err, "failed to check instance existence")
+	}
+
+	connectionStates := make(map[string]dto.BatchConnectionState, len(existingIDs))
+	for _, instanceID := range uniqueIDs {
+		if requestContext.Err() != nil {
+			return nil
+		}
+		if _, exists := existingIDs[instanceID]; !exists {
 			continue
 		}
 		status, err := s.whatsmiau.Status(instanceID)
