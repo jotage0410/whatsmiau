@@ -2337,6 +2337,81 @@ const docTemplate = `{
                 }
             }
         },
+        "/v1/instance/connectionStates": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Returns the current connection state of each existing requested instance. IDs not found in storage are omitted. Accepts 1 to 10000 IDs, each 1 to 128 characters, with a 2 MiB body limit.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Instance"
+                ],
+                "summary": "Get connection states for multiple instances",
+                "parameters": [
+                    {
+                        "description": "Instance IDs",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.BatchConnectionStatesRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.BatchConnectionStatesResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.HTTPErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.AuthenticationErrorResponse"
+                        }
+                    },
+                    "413": {
+                        "description": "Request Entity Too Large",
+                        "schema": {
+                            "$ref": "#/definitions/utils.HTTPMessageResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/utils.HTTPErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.HTTPErrorResponse"
+                        }
+                    },
+                    "501": {
+                        "description": "Not Implemented",
+                        "schema": {
+                            "$ref": "#/definitions/utils.HTTPErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/v1/instance/create": {
             "post": {
                 "security": [
@@ -7664,6 +7739,50 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "dto.BatchConnectionState": {
+            "type": "string",
+            "enum": [
+                "open",
+                "connecting",
+                "qr-code",
+                "closed"
+            ],
+            "x-enum-varnames": [
+                "BatchConnectionStateOpen",
+                "BatchConnectionStateConnecting",
+                "BatchConnectionStateQRCode",
+                "BatchConnectionStateClosed"
+            ]
+        },
+        "dto.BatchConnectionStatesRequest": {
+            "type": "object",
+            "required": [
+                "instanceNames"
+            ],
+            "properties": {
+                "instanceNames": {
+                    "type": "array",
+                    "maxItems": 10000,
+                    "minItems": 1,
+                    "items": {
+                        "type": "string",
+                        "maxLength": 128,
+                        "minLength": 1
+                    }
+                }
+            }
+        },
+        "dto.BatchConnectionStatesResponse": {
+            "type": "object",
+            "properties": {
+                "connectionStates": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/dto.BatchConnectionState"
+                    }
+                }
+            }
+        },
         "dto.CallActionResponse": {
             "type": "object",
             "properties": {
@@ -9908,6 +10027,15 @@ const docTemplate = `{
                 },
                 "message": {
                     "type": "string"
+                }
+            }
+        },
+        "utils.HTTPMessageResponse": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string",
+                    "example": "Request Entity Too Large"
                 }
             }
         },
