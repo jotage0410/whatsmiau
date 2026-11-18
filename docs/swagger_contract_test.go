@@ -35,10 +35,10 @@ func TestSwaggerCoversEveryDocumentedRoute(t *testing.T) {
 	}
 
 	operations := append(routes.DocumentedV1Operations(), routes.DocumentedDocumentationOperations()...)
-	if got, want := len(routes.DocumentedV1Operations()), 107; got != want {
+	if got, want := len(routes.DocumentedV1Operations()), 115; got != want {
 		t.Fatalf("unexpected /v1 operation inventory size: got %d, want %d", got, want)
 	}
-	if got, want := len(operations), 111; got != want {
+	if got, want := len(operations), 119; got != want {
 		t.Fatalf("unexpected full operation inventory size: got %d, want %d", got, want)
 	}
 
