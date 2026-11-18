@@ -20,7 +20,7 @@ func DocumentedV1Operations() []Operation {
 		}
 	}
 
-	appendOperation(http.MethodPost, "/v1/instance", "/v1/instance/create", "/v1/instance/{id}/connect", "/v1/instance/{id}/logout", "/v1/instance/{id}/restart", "/v1/instance/restart/{id}")
+	appendOperation(http.MethodPost, "/v1/instance", "/v1/instance/create", "/v1/instance/connectionStates", "/v1/instance/{id}/connect", "/v1/instance/{id}/logout", "/v1/instance/{id}/restart", "/v1/instance/restart/{id}")
 	appendOperation(http.MethodGet, "/v1/instance", "/v1/instance/fetchInstances", "/v1/instance/connect/{id}", "/v1/instance/connect/{id}/image", "/v1/instance/{id}/status", "/v1/instance/connectionState/{id}")
 	appendOperation(http.MethodDelete, "/v1/instance/{id}", "/v1/instance/logout/{id}", "/v1/instance/delete/{id}")
 	appendOperation(http.MethodPut, "/v1/instance/update/{id}")
@@ -71,6 +71,13 @@ func DocumentedV1Operations() []Operation {
 	}
 	for _, action := range []string{"subGroups", "linkedGroupsParticipants", "requestParticipants"} {
 		appendOperation(http.MethodGet, "/v1/instance/{instance}/community/"+action)
+	}
+
+	for _, action := range []string{"fetchAll", "info", "inviteInfo"} {
+		appendOperation(http.MethodGet, "/v1/instance/{instance}/newsletter/"+action)
+	}
+	for _, action := range []string{"create", "follow", "unfollow", "mute", "unmute"} {
+		appendOperation(http.MethodPost, "/v1/instance/{instance}/newsletter/"+action)
 	}
 
 	appendOperation(http.MethodPost, "/v1/webhook/set/{instance}")

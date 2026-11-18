@@ -2401,6 +2401,81 @@ const docTemplate = `{
                 }
             }
         },
+        "/v1/instance/connectionStates": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Returns the current connection state of each existing requested instance. IDs not found in storage are omitted. Accepts 1 to 10000 IDs, each 1 to 128 characters, with a 2 MiB body limit.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Instance"
+                ],
+                "summary": "Get connection states for multiple instances",
+                "parameters": [
+                    {
+                        "description": "Instance IDs",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.BatchConnectionStatesRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.BatchConnectionStatesResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.HTTPErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.AuthenticationErrorResponse"
+                        }
+                    },
+                    "413": {
+                        "description": "Request Entity Too Large",
+                        "schema": {
+                            "$ref": "#/definitions/utils.HTTPMessageResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/utils.HTTPErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.HTTPErrorResponse"
+                        }
+                    },
+                    "501": {
+                        "description": "Not Implemented",
+                        "schema": {
+                            "$ref": "#/definitions/utils.HTTPErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/v1/instance/create": {
             "post": {
                 "security": [
@@ -6847,6 +6922,632 @@ const docTemplate = `{
                 }
             }
         },
+        "/v1/instance/{instance}/newsletter/create": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Creates a WhatsApp channel owned by the instance. picture accepts an http(s) URL (public addresses only), a data: URI or raw base64; JPEG is recommended.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Newsletter"
+                ],
+                "summary": "Create a channel (newsletter)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Instance ID",
+                        "name": "instance",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Channel payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.CreateNewsletterRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/whatsmiau.NewsletterResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.HTTPErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/utils.HTTPErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/utils.HTTPErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/utils.HTTPErrorResponse"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/utils.HTTPErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.HTTPErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/instance/{instance}/newsletter/fetchAll": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Returns every WhatsApp channel the number follows or administers. role is owner, admin, subscriber or guest; canPublish is true for owner and admin.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Newsletter"
+                ],
+                "summary": "List the instance's channels (newsletters)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Instance ID",
+                        "name": "instance",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/whatsmiau.NewsletterResponse"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.HTTPErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/utils.HTTPErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/utils.HTTPErrorResponse"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/utils.HTTPErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.HTTPErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/instance/{instance}/newsletter/follow": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Newsletter"
+                ],
+                "summary": "Follow a channel (newsletter)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Instance ID",
+                        "name": "instance",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Channel JID",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.NewsletterJidRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.NewsletterActionResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.HTTPErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/utils.HTTPErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/utils.HTTPErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/utils.HTTPErrorResponse"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/utils.HTTPErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.HTTPErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/instance/{instance}/newsletter/info": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Newsletter"
+                ],
+                "summary": "Get a channel (newsletter) by JID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Instance ID",
+                        "name": "instance",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Channel JID (\u003cid\u003e@newsletter or the numeric id)",
+                        "name": "newsletterJid",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/whatsmiau.NewsletterResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.HTTPErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/utils.HTTPErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/utils.HTTPErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/utils.HTTPErrorResponse"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/utils.HTTPErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.HTTPErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/instance/{instance}/newsletter/inviteInfo": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Accepts https://whatsapp.com/channel/CODE, https://www.whatsapp.com/channel/CODE (post links included) or the bare CODE. WhatsApp does not return viewer metadata for invite lookups, so role, muted and canPublish are null.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Newsletter"
+                ],
+                "summary": "Get a channel (newsletter) by invite link or code",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Instance ID",
+                        "name": "instance",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Channel invite link or code",
+                        "name": "inviteCode",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/whatsmiau.NewsletterResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.HTTPErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/utils.HTTPErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/utils.HTTPErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/utils.HTTPErrorResponse"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/utils.HTTPErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.HTTPErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/instance/{instance}/newsletter/mute": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Newsletter"
+                ],
+                "summary": "Mute a channel (newsletter)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Instance ID",
+                        "name": "instance",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Channel JID",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.NewsletterJidRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.NewsletterActionResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.HTTPErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/utils.HTTPErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/utils.HTTPErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/utils.HTTPErrorResponse"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/utils.HTTPErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.HTTPErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/instance/{instance}/newsletter/unfollow": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Newsletter"
+                ],
+                "summary": "Unfollow a channel (newsletter)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Instance ID",
+                        "name": "instance",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Channel JID",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.NewsletterJidRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.NewsletterActionResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.HTTPErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/utils.HTTPErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/utils.HTTPErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/utils.HTTPErrorResponse"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/utils.HTTPErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.HTTPErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/instance/{instance}/newsletter/unmute": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Newsletter"
+                ],
+                "summary": "Unmute a channel (newsletter)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Instance ID",
+                        "name": "instance",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Channel JID",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.NewsletterJidRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.NewsletterActionResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.HTTPErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/utils.HTTPErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/utils.HTTPErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/utils.HTTPErrorResponse"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/utils.HTTPErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.HTTPErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/v1/message/sendButtons/{instance}": {
             "post": {
                 "security": [
@@ -7840,6 +8541,50 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "dto.BatchConnectionState": {
+            "type": "string",
+            "enum": [
+                "open",
+                "connecting",
+                "qr-code",
+                "closed"
+            ],
+            "x-enum-varnames": [
+                "BatchConnectionStateOpen",
+                "BatchConnectionStateConnecting",
+                "BatchConnectionStateQRCode",
+                "BatchConnectionStateClosed"
+            ]
+        },
+        "dto.BatchConnectionStatesRequest": {
+            "type": "object",
+            "required": [
+                "instanceNames"
+            ],
+            "properties": {
+                "instanceNames": {
+                    "type": "array",
+                    "maxItems": 10000,
+                    "minItems": 1,
+                    "items": {
+                        "type": "string",
+                        "maxLength": 128,
+                        "minLength": 1
+                    }
+                }
+            }
+        },
+        "dto.BatchConnectionStatesResponse": {
+            "type": "object",
+            "properties": {
+                "connectionStates": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/dto.BatchConnectionState"
+                    }
+                }
+            }
+        },
         "dto.CallActionResponse": {
             "type": "object",
             "properties": {
@@ -8246,6 +8991,26 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.CreateNewsletterRequest": {
+            "type": "object",
+            "required": [
+                "name"
+            ],
+            "properties": {
+                "description": {
+                    "type": "string",
+                    "example": "The best offers of the day"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Daily Deals"
+                },
+                "picture": {
+                    "description": "Picture can be an http(s) URL, a data: URI or raw base64 of an image (JPEG recommended).",
+                    "type": "string"
+                }
+            }
+        },
         "dto.DeleteInstanceResponse": {
             "type": "object",
             "properties": {
@@ -8583,6 +9348,10 @@ const docTemplate = `{
                 },
                 "remoteJid": {
                     "type": "string"
+                },
+                "serverId": {
+                    "description": "ServerId is the server-assigned ID of a channel (newsletter) post,\nomitted for every other chat.",
+                    "type": "integer"
                 }
             }
         },
@@ -8639,6 +9408,36 @@ const docTemplate = `{
                 },
                 "preKeysImported": {
                     "type": "integer"
+                }
+            }
+        },
+        "dto.NewsletterActionResponse": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "type": "string",
+                    "enum": [
+                        "follow",
+                        "unfollow",
+                        "mute",
+                        "unmute"
+                    ]
+                },
+                "newsletterJid": {
+                    "type": "string",
+                    "example": "120363144038483540@newsletter"
+                }
+            }
+        },
+        "dto.NewsletterJidRequest": {
+            "type": "object",
+            "required": [
+                "newsletterJid"
+            ],
+            "properties": {
+                "newsletterJid": {
+                    "type": "string",
+                    "example": "120363144038483540@newsletter"
                 }
             }
         },
@@ -9363,6 +10162,10 @@ const docTemplate = `{
                 "values"
             ],
             "properties": {
+                "correctAnswer": {
+                    "description": "CorrectAnswer turns the poll into a single-choice quiz; it must be one of\nvalues. Channels (newsletters) only.",
+                    "type": "string"
+                },
                 "delay": {
                     "type": "integer",
                     "maximum": 300000,
@@ -9706,6 +10509,10 @@ const docTemplate = `{
                 "number": {
                     "description": "JID",
                     "type": "string"
+                },
+                "question": {
+                    "description": "Question posts the text as a question followers answer privately.\nChannels (newsletters) only.",
+                    "type": "boolean"
                 },
                 "quoted": {
                     "$ref": "#/definitions/dto.MessageRequestQuoted"
@@ -10109,6 +10916,15 @@ const docTemplate = `{
                 }
             }
         },
+        "utils.HTTPMessageResponse": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string",
+                    "example": "Request Entity Too Large"
+                }
+            }
+        },
         "whatsmiau.AcceptGroupInviteResponse": {
             "type": "object",
             "properties": {
@@ -10282,6 +11098,85 @@ const docTemplate = `{
                 },
                 "lid": {
                     "type": "string"
+                }
+            }
+        },
+        "whatsmiau.NewsletterResponse": {
+            "type": "object",
+            "properties": {
+                "canPublish": {
+                    "type": "boolean",
+                    "x-nullable": true
+                },
+                "creation": {
+                    "type": "integer"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "120363144038483540@newsletter"
+                },
+                "inviteCode": {
+                    "type": "string",
+                    "example": "0029Va4K0PZ5a245NkngBA2M"
+                },
+                "inviteUrl": {
+                    "type": "string",
+                    "example": "https://whatsapp.com/channel/0029Va4K0PZ5a245NkngBA2M"
+                },
+                "muted": {
+                    "type": "boolean",
+                    "x-nullable": true
+                },
+                "name": {
+                    "type": "string"
+                },
+                "pictureDirectPath": {
+                    "type": "string"
+                },
+                "pictureId": {
+                    "type": "string"
+                },
+                "pictureUrl": {
+                    "type": "string"
+                },
+                "previewUrl": {
+                    "type": "string"
+                },
+                "reactionsMode": {
+                    "type": "string",
+                    "enum": [
+                        "all",
+                        "basic",
+                        "none",
+                        "blocklist"
+                    ]
+                },
+                "role": {
+                    "type": "string",
+                    "enum": [
+                        "owner",
+                        "admin",
+                        "subscriber",
+                        "guest"
+                    ],
+                    "x-nullable": true
+                },
+                "state": {
+                    "type": "string",
+                    "enum": [
+                        "active",
+                        "suspended",
+                        "geosuspended"
+                    ]
+                },
+                "subscribersCount": {
+                    "type": "integer"
+                },
+                "verified": {
+                    "type": "boolean"
                 }
             }
         },
