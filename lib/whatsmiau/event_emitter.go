@@ -362,7 +362,7 @@ func (s *Whatsmiau) handleLoggedOut(id string) {
 	s.deleteClient(id)
 }
 func (s *Whatsmiau) handleMessageEvent(id string, instance *models.Instance, e *events.Message, eventMap map[webhookConfigEvent]bool) {
-	if isStatusPublication(e) {
+	if isNonNewsletterStatusFrame(e) {
 		return
 	}
 

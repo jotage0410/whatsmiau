@@ -64,8 +64,12 @@ func incoming(chat types.JID, id string, msg *waE2E.Message) *events.Message {
 			MessageSource: types.MessageSource{Chat: chat, Sender: testStatusViewer, IsGroup: chat.Server != types.DefaultUserServer},
 			ID:            id,
 			Timestamp:     testStatusAt,
+			StanzaTag:     "message",
 		},
 		RawMessage: msg,
+	}
+	if chat == types.StatusBroadcastJID {
+		evt.Info.StanzaTag = "status"
 	}
 	return evt.UnwrapRaw()
 }
@@ -113,12 +117,13 @@ func (keys testSenderKeys) GetSenderKey(_ context.Context, group, sender string)
 
 func TestIncomingStatusFrames(t *testing.T) {
 	// Fixed wire frames let different Whatsmeow versions replay the same ciphertext.
-	// Each encrypted body is the text "oi", wrapped in GroupStatusMessageV2 for the
-	// group status. The channel post uses the newsletter plaintext format.
+	// The fixture covers status publications and reactions, a regular group message and reaction,
+	// and a newsletter post in the newsletter plaintext format.
 	var fixture struct {
 		Sender types.JID
 		Keys   []struct {
 			Chat         types.JID
+			Sender       types.JID
 			Distribution []byte
 		}
 		Frames map[string][]byte
@@ -136,17 +141,26 @@ func TestIncomingStatusFrames(t *testing.T) {
 	client.SynchronousAck = true
 	wire := client.DangerousInternals()
 	for _, key := range fixture.Keys {
-		wire.HandleSenderKeyDistributionMessage(t.Context(), key.Chat, fixture.Sender, key.Distribution)
+		sender := key.Sender
+		if sender.IsEmpty() {
+			sender = fixture.Sender
+		}
+		wire.HandleSenderKeyDistributionMessage(t.Context(), key.Chat, sender, key.Distribution)
 	}
 
 	cases := []struct {
 		id         string
 		wantUpsert bool
+		wantType   string
+		wantText   string
 	}{
-		{"contact-status", false},
-		{"group-status", false},
-		{"group-message", true},
-		{"channel-post", true},
+		{"contact-status", false, "", ""},
+		{"contact-status-reaction", false, "", ""},
+		{"group-status", false, "", ""},
+		{"group-status-reaction", false, "", ""},
+		{"group-message", true, "conversation", "oi"},
+		{"group-reaction", true, "reactionMessage", "❤️"},
+		{"channel-post", true, "conversation", "oi"},
 	}
 	received := make(chan any, len(fixture.Frames))
 	client.AddEventHandler(func(evt any) { received <- evt })
@@ -208,8 +222,12 @@ func TestIncomingStatusFrames(t *testing.T) {
 				got := collect()
 				if tt.wantUpsert {
 					if len(got) != 1 || path(got[0], "event") != "messages.upsert" ||
-						path(got[0], "data", "messageType") != "conversation" || path(got[0], "data", "message", "conversation") != "oi" {
-						t.Errorf("readMessages=%t: expected one text upsert, got %v", read, got)
+						path(got[0], "data", "messageType") != tt.wantType {
+						t.Errorf("readMessages=%t: expected one %s upsert, got %v", read, tt.wantType, got)
+					} else if tt.wantType == "reactionMessage" && path(got[0], "data", "message", "reactionMessage", "text") != tt.wantText {
+						t.Errorf("readMessages=%t: reaction text = %v, want %q", read, path(got[0], "data", "message", "reactionMessage", "text"), tt.wantText)
+					} else if tt.wantType == "conversation" && path(got[0], "data", "message", "conversation") != tt.wantText {
+						t.Errorf("readMessages=%t: conversation = %v, want %q", read, path(got[0], "data", "message", "conversation"), tt.wantText)
 					}
 				} else if len(got) != 0 {
 					t.Errorf("readMessages=%t: unexpected webhooks: %v", read, got)
@@ -219,23 +237,29 @@ func TestIncomingStatusFrames(t *testing.T) {
 	}
 }
 
-func TestGroupStatusStanzaContents(t *testing.T) {
+func TestNonNewsletterStatusFrameClassification(t *testing.T) {
 	group := types.NewJID("120363000000000001", types.GroupServer)
-	key := &waE2E.SenderKeyDistributionMessage{GroupID: proto.String(group.String())}
 	content := &waE2E.Message{Conversation: proto.String("oi")}
 	for _, tt := range []struct {
-		name   string
-		msg    *waE2E.Message
-		status bool
+		name       string
+		chat       types.JID
+		sender     types.JID
+		stanzaTag  string
+		msg        *waE2E.Message
+		shouldDrop bool
 	}{
-		{"legacy envelope", &waE2E.Message{GroupStatusMessage: &waE2E.FutureProofMessage{Message: content}}, true},
-		{"sender key only", &waE2E.Message{SenderKeyDistributionMessage: key}, true},
-		{"text with sender key", &waE2E.Message{SenderKeyDistributionMessage: key, Conversation: proto.String("oi")}, false},
+		{"personal status", types.StatusBroadcastJID, testStatusViewer, "status", content, true},
+		{"personal status reaction", types.StatusBroadcastJID, testStatusViewer, "status", &waE2E.Message{ReactionMessage: &waE2E.ReactionMessage{}}, true},
+		{"group status", group, testStatusViewer, "status", &waE2E.Message{GroupStatusMessage: &waE2E.FutureProofMessage{Message: content}}, true},
+		{"group status reaction", group, testStatusViewer, "status", &waE2E.Message{ReactionMessage: &waE2E.ReactionMessage{}}, true},
+		{"ordinary group reaction", group, testStatusViewer, "message", &waE2E.Message{ReactionMessage: &waE2E.ReactionMessage{}}, false},
+		{"newsletter post", types.NewJID("120363000000000002", types.NewsletterServer), types.NewJID("120363000000000002", types.NewsletterServer), "status", content, false},
 	} {
-		evt := incoming(group, "G1", tt.msg)
-		evt.Info.StanzaTag = "status"
-		if got := isStatusPublication(evt); got != tt.status {
-			t.Errorf("%s: isStatusPublication = %t, want %t", tt.name, got, tt.status)
+		evt := incoming(tt.chat, "G1", tt.msg)
+		evt.Info.Sender = tt.sender
+		evt.Info.StanzaTag = tt.stanzaTag
+		if got := isNonNewsletterStatusFrame(evt); got != tt.shouldDrop {
+			t.Errorf("%s: isNonNewsletterStatusFrame = %t, want %t", tt.name, got, tt.shouldDrop)
 		}
 	}
 }
