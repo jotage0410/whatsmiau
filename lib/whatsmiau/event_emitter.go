@@ -362,6 +362,10 @@ func (s *Whatsmiau) handleLoggedOut(id string) {
 	s.deleteClient(id)
 }
 func (s *Whatsmiau) handleMessageEvent(id string, instance *models.Instance, e *events.Message, eventMap map[webhookConfigEvent]bool) {
+	if isStatusPublication(e) {
+		return
+	}
+
 	if e.Message != nil {
 		if pm := e.Message.GetProtocolMessage(); pm != nil {
 			switch pm.GetType() {
@@ -395,7 +399,7 @@ func (s *Whatsmiau) handleMessageEvent(id string, instance *models.Instance, e *
 		return
 	}
 
-	if canIgnoreMessage(e) || isKeyDistributionOnly(e.Message) {
+	if isKeyDistributionOnly(e.Message) {
 		return
 	}
 
@@ -430,10 +434,6 @@ func (s *Whatsmiau) handleMessageDeleteEvent(id string, instance *models.Instanc
 	}
 
 	if canIgnoreGroup(e, instance) {
-		return
-	}
-
-	if canIgnoreMessage(e) {
 		return
 	}
 

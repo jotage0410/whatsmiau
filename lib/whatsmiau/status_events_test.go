@@ -1,16 +1,22 @@
 package whatsmiau
 
 import (
+	"context"
 	"encoding/json"
+	"os"
 	"testing"
 	"time"
 
 	"github.com/puzpuzpuz/xsync/v4"
 	"go.mau.fi/whatsmeow"
+	waBinary "go.mau.fi/whatsmeow/binary"
 	"go.mau.fi/whatsmeow/proto/waCommon"
 	"go.mau.fi/whatsmeow/proto/waE2E"
+	"go.mau.fi/whatsmeow/store"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest/observer"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/verbeux-ai/whatsmiau/models"
@@ -78,17 +84,159 @@ func path(body map[string]any, keys ...string) any {
 
 // The status updates contacts post are not carried, whatever their content.
 func TestStatusUpdatesOfContactsAreNotEmitted(t *testing.T) {
-	s, instance, collect := statusEventsHarness(t, "MESSAGES_UPSERT", "MESSAGES_DELETE")
+	s, instance, collect := statusEventsHarness(t, "MESSAGES_UPSERT", "MESSAGES_DELETE", "MESSAGES_EDITED")
+	statusKey := &waCommon.MessageKey{RemoteJID: proto.String("status@broadcast"), ID: proto.String("X")}
 	for name, msg := range map[string]*waE2E.Message{
-		"text":  {ExtendedTextMessage: &waE2E.ExtendedTextMessage{Text: proto.String("bom dia")}},
-		"image": {ImageMessage: &waE2E.ImageMessage{Caption: proto.String("foto")}},
-		"revoke": {ProtocolMessage: &waE2E.ProtocolMessage{Type: waE2E.ProtocolMessage_REVOKE.Enum(),
-			Key: &waCommon.MessageKey{RemoteJID: proto.String("status@broadcast"), ID: proto.String("X")}}},
+		"text":   {ExtendedTextMessage: &waE2E.ExtendedTextMessage{Text: proto.String("bom dia")}},
+		"image":  {ImageMessage: &waE2E.ImageMessage{Caption: proto.String("foto")}},
+		"revoke": {ProtocolMessage: &waE2E.ProtocolMessage{Type: waE2E.ProtocolMessage_REVOKE.Enum(), Key: statusKey}},
+		"edit": {ProtocolMessage: &waE2E.ProtocolMessage{Type: waE2E.ProtocolMessage_MESSAGE_EDIT.Enum(), Key: statusKey,
+			EditedMessage: &waE2E.Message{Conversation: proto.String("boa tarde")}}},
 	} {
 		s.handleMessageEvent("inst", instance, incoming(types.StatusBroadcastJID, "S-"+name, msg), enabledWebhookEvents(instance.Webhook))
 	}
 	if got := collect(); len(got) != 0 {
 		t.Fatalf("status updates of contacts reached the webhook: %v", got)
+	}
+}
+
+type testSenderKeys map[[2]string][]byte
+
+func (keys testSenderKeys) PutSenderKey(_ context.Context, group, sender string, key []byte) error {
+	keys[[2]string{group, sender}] = key
+	return nil
+}
+
+func (keys testSenderKeys) GetSenderKey(_ context.Context, group, sender string) ([]byte, error) {
+	return keys[[2]string{group, sender}], nil
+}
+
+func TestIncomingStatusFrames(t *testing.T) {
+	// Fixed wire frames let different Whatsmeow versions replay the same ciphertext.
+	// Each encrypted body is the text "oi", wrapped in GroupStatusMessageV2 for the
+	// group status. The channel post uses the newsletter plaintext format.
+	var fixture struct {
+		Sender types.JID
+		Keys   []struct {
+			Chat         types.JID
+			Distribution []byte
+		}
+		Frames map[string][]byte
+	}
+	data, err := os.ReadFile("testdata/incoming_status_frames.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(data, &fixture); err != nil {
+		t.Fatal(err)
+	}
+
+	ownJID := types.NewJID("222222222222222", types.DefaultUserServer)
+	client := whatsmeow.NewClient(&store.Device{ID: &ownJID, SenderKeys: testSenderKeys{}}, nil)
+	client.SynchronousAck = true
+	wire := client.DangerousInternals()
+	for _, key := range fixture.Keys {
+		wire.HandleSenderKeyDistributionMessage(t.Context(), key.Chat, fixture.Sender, key.Distribution)
+	}
+
+	cases := []struct {
+		id         string
+		wantUpsert bool
+	}{
+		{"contact-status", false},
+		{"group-status", false},
+		{"group-message", true},
+		{"channel-post", true},
+	}
+	received := make(chan any, len(fixture.Frames))
+	client.AddEventHandler(func(evt any) { received <- evt })
+	queue := make(chan *waBinary.Node, len(fixture.Frames))
+	for _, tt := range cases {
+		frame := fixture.Frames[tt.id]
+		if len(frame) == 0 {
+			t.Fatalf("missing frame %q", tt.id)
+		}
+		wire.HandleFrame(t.Context(), frame, queue)
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	done := make(chan struct{})
+	go wire.HandlerQueueLoop(ctx, ctx, queue, done)
+	defer func() {
+		cancel()
+		<-done
+	}()
+
+	// The final newsletter arrives on both pins, after all preceding frames have run.
+	messages := make(map[string]*events.Message)
+	for messages["channel-post"] == nil {
+		select {
+		case evt := <-received:
+			msg, ok := evt.(*events.Message)
+			if !ok {
+				t.Fatalf("unexpected event %T", evt)
+			}
+			if messages[msg.Info.ID] != nil {
+				t.Fatalf("duplicate message %s", msg.Info.ID)
+			}
+			messages[msg.Info.ID] = msg
+		case <-ctx.Done():
+			t.Fatalf("waiting for channel post: %v", ctx.Err())
+		}
+	}
+	for _, tt := range cases {
+		t.Run(tt.id, func(t *testing.T) {
+			msg := messages[tt.id]
+			if msg == nil {
+				t.Fatalf("Whatsmeow did not dispatch %s", tt.id)
+			}
+			s, instance, collect := statusEventsHarness(t, "MESSAGES_UPSERT", "MESSAGES_DELETE", "MESSAGES_EDITED")
+			s.clients.Store(instance.ID, client)
+			core, logs := observer.New(zap.ErrorLevel)
+			defer zap.ReplaceGlobals(zap.New(core))()
+			for _, read := range []bool{false, true} {
+				instance.ReadMessages = &read
+				s.handleMessageEvent(instance.ID, instance, msg, enabledWebhookEvents(instance.Webhook))
+				// The disconnected client returns an error for every MarkRead attempt.
+				wantReads := 0
+				if read && tt.wantUpsert {
+					wantReads = 1
+				}
+				if got := logs.FilterMessage("failed to mark message as read").Len(); got != wantReads {
+					t.Errorf("readMessages=%t: MarkRead attempts = %d, want %d", read, got, wantReads)
+				}
+				logs.TakeAll()
+				got := collect()
+				if tt.wantUpsert {
+					if len(got) != 1 || path(got[0], "event") != "messages.upsert" ||
+						path(got[0], "data", "messageType") != "conversation" || path(got[0], "data", "message", "conversation") != "oi" {
+						t.Errorf("readMessages=%t: expected one text upsert, got %v", read, got)
+					}
+				} else if len(got) != 0 {
+					t.Errorf("readMessages=%t: unexpected webhooks: %v", read, got)
+				}
+			}
+		})
+	}
+}
+
+func TestGroupStatusStanzaContents(t *testing.T) {
+	group := types.NewJID("120363000000000001", types.GroupServer)
+	key := &waE2E.SenderKeyDistributionMessage{GroupID: proto.String(group.String())}
+	content := &waE2E.Message{Conversation: proto.String("oi")}
+	for _, tt := range []struct {
+		name   string
+		msg    *waE2E.Message
+		status bool
+	}{
+		{"legacy envelope", &waE2E.Message{GroupStatusMessage: &waE2E.FutureProofMessage{Message: content}}, true},
+		{"sender key only", &waE2E.Message{SenderKeyDistributionMessage: key}, true},
+		{"text with sender key", &waE2E.Message{SenderKeyDistributionMessage: key, Conversation: proto.String("oi")}, false},
+	} {
+		evt := incoming(group, "G1", tt.msg)
+		evt.Info.StanzaTag = "status"
+		if got := isStatusPublication(evt); got != tt.status {
+			t.Errorf("%s: isStatusPublication = %t, want %t", tt.name, got, tt.status)
+		}
 	}
 }
 

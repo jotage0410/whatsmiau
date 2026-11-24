@@ -356,8 +356,14 @@ func extractExtFromFile(fileName, mimeType string, file *os.File) string {
 	return strings.TrimPrefix(ext, ".")
 }
 
-func canIgnoreMessage(msg *events.Message) bool {
-	return strings.Contains(msg.Info.Chat.String(), "status")
+func isStatusPublication(msg *events.Message) bool {
+	if msg.Info.Chat == types.StatusBroadcastJID {
+		return msg.Message.GetReactionMessage() == nil
+	}
+	if msg.Info.Chat.Server != types.GroupServer || msg.Info.StanzaTag != "status" {
+		return false
+	}
+	return msg.Message.GetGroupStatusMessageV2() != nil || msg.Message.GetGroupStatusMessage() != nil || isKeyDistributionOnly(msg.Message)
 }
 
 // isKeyDistributionOnly reports whether a message only carries a sender key distribution (and its
