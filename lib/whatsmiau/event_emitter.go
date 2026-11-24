@@ -395,7 +395,7 @@ func (s *Whatsmiau) handleMessageEvent(id string, instance *models.Instance, e *
 		return
 	}
 
-	if canIgnoreGroup(e, instance) {
+	if e.Info.Chat == types.StatusBroadcastJID || canIgnoreGroup(e, instance) {
 		return
 	}
 
@@ -433,7 +433,7 @@ func (s *Whatsmiau) handleMessageDeleteEvent(id string, instance *models.Instanc
 		return
 	}
 
-	if canIgnoreGroup(e, instance) {
+	if e.Info.Chat == types.StatusBroadcastJID || canIgnoreGroup(e, instance) {
 		return
 	}
 

@@ -357,7 +357,13 @@ func extractExtFromFile(fileName, mimeType string, file *os.File) string {
 }
 
 func isNonNewsletterStatusFrame(msg *events.Message) bool {
-	return msg != nil && msg.Info.StanzaTag == "status" && msg.Info.Sender.Server != types.NewsletterServer
+	if msg == nil {
+		return false
+	}
+	if msg.Info.Chat == types.StatusBroadcastJID {
+		return true
+	}
+	return msg.Info.StanzaTag == "status" && msg.Info.Sender.Server != types.NewsletterServer
 }
 
 // isKeyDistributionOnly reports whether a message only carries a sender key distribution (and its

@@ -58,18 +58,15 @@ func statusEventsHarness(t *testing.T, events ...string) (*Whatsmiau, *models.In
 }
 
 // incoming builds the event whatsmeow dispatches for a decrypted message.
-func incoming(chat types.JID, id string, msg *waE2E.Message) *events.Message {
+func incoming(stanzaTag string, chat types.JID, id string, msg *waE2E.Message) *events.Message {
 	evt := &events.Message{
 		Info: types.MessageInfo{
 			MessageSource: types.MessageSource{Chat: chat, Sender: testStatusViewer, IsGroup: chat.Server != types.DefaultUserServer},
 			ID:            id,
 			Timestamp:     testStatusAt,
-			StanzaTag:     "message",
+			StanzaTag:     stanzaTag,
 		},
 		RawMessage: msg,
-	}
-	if chat == types.StatusBroadcastJID {
-		evt.Info.StanzaTag = "status"
 	}
 	return evt.UnwrapRaw()
 }
@@ -97,7 +94,7 @@ func TestStatusUpdatesOfContactsAreNotEmitted(t *testing.T) {
 		"edit": {ProtocolMessage: &waE2E.ProtocolMessage{Type: waE2E.ProtocolMessage_MESSAGE_EDIT.Enum(), Key: statusKey,
 			EditedMessage: &waE2E.Message{Conversation: proto.String("boa tarde")}}},
 	} {
-		s.handleMessageEvent("inst", instance, incoming(types.StatusBroadcastJID, "S-"+name, msg), enabledWebhookEvents(instance.Webhook))
+		s.handleMessageEvent("inst", instance, incoming("status", types.StatusBroadcastJID, "S-"+name, msg), enabledWebhookEvents(instance.Webhook))
 	}
 	if got := collect(); len(got) != 0 {
 		t.Fatalf("status updates of contacts reached the webhook: %v", got)
@@ -117,8 +114,7 @@ func (keys testSenderKeys) GetSenderKey(_ context.Context, group, sender string)
 
 func TestIncomingStatusFrames(t *testing.T) {
 	// Fixed wire frames let different Whatsmeow versions replay the same ciphertext.
-	// The fixture covers status publications and reactions, a regular group message and reaction,
-	// and a newsletter post in the newsletter plaintext format.
+	// Status broadcasts can arrive in both status and message frames.
 	var fixture struct {
 		Sender types.JID
 		Keys   []struct {
@@ -149,18 +145,23 @@ func TestIncomingStatusFrames(t *testing.T) {
 	}
 
 	cases := []struct {
-		id         string
-		wantUpsert bool
-		wantType   string
-		wantText   string
+		id        string
+		stanzaTag string
+		wantRead  bool
+		wantType  string
+		wantText  string
 	}{
-		{"contact-status", false, "", ""},
-		{"contact-status-reaction", false, "", ""},
-		{"group-status", false, "", ""},
-		{"group-status-reaction", false, "", ""},
-		{"group-message", true, "conversation", "oi"},
-		{"group-reaction", true, "reactionMessage", "❤️"},
-		{"channel-post", true, "conversation", "oi"},
+		{"contact-status", "status", false, "", ""},
+		{"contact-status-reaction", "status", false, "", ""},
+		{"contact-status-revoke", "status", false, "", ""},
+		{"contact-message-post", "message", false, "", ""},
+		{"contact-message-reaction", "message", false, "", ""},
+		{"contact-message-revoke", "message", false, "", ""},
+		{"group-status", "status", false, "", ""},
+		{"group-status-reaction", "status", false, "", ""},
+		{"group-message", "message", true, "conversation", "oi"},
+		{"group-reaction", "message", true, "reactionMessage", "❤️"},
+		{"channel-post", "status", true, "conversation", "oi"},
 	}
 	received := make(chan any, len(fixture.Frames))
 	client.AddEventHandler(func(evt any) { received <- evt })
@@ -203,6 +204,9 @@ func TestIncomingStatusFrames(t *testing.T) {
 			if msg == nil {
 				t.Fatalf("Whatsmeow did not dispatch %s", tt.id)
 			}
+			if msg.Info.StanzaTag != tt.stanzaTag {
+				t.Fatalf("stanza tag = %q, want %q", msg.Info.StanzaTag, tt.stanzaTag)
+			}
 			s, instance, collect := statusEventsHarness(t, "MESSAGES_UPSERT", "MESSAGES_DELETE", "MESSAGES_EDITED")
 			s.clients.Store(instance.ID, client)
 			core, logs := observer.New(zap.ErrorLevel)
@@ -212,7 +216,7 @@ func TestIncomingStatusFrames(t *testing.T) {
 				s.handleMessageEvent(instance.ID, instance, msg, enabledWebhookEvents(instance.Webhook))
 				// The disconnected client returns an error for every MarkRead attempt.
 				wantReads := 0
-				if read && tt.wantUpsert {
+				if read && tt.wantRead {
 					wantReads = 1
 				}
 				if got := logs.FilterMessage("failed to mark message as read").Len(); got != wantReads {
@@ -220,7 +224,7 @@ func TestIncomingStatusFrames(t *testing.T) {
 				}
 				logs.TakeAll()
 				got := collect()
-				if tt.wantUpsert {
+				if tt.wantType != "" {
 					if len(got) != 1 || path(got[0], "event") != "messages.upsert" ||
 						path(got[0], "data", "messageType") != tt.wantType {
 						t.Errorf("readMessages=%t: expected one %s upsert, got %v", read, tt.wantType, got)
@@ -250,14 +254,15 @@ func TestNonNewsletterStatusFrameClassification(t *testing.T) {
 	}{
 		{"personal status", types.StatusBroadcastJID, testStatusViewer, "status", content, true},
 		{"personal status reaction", types.StatusBroadcastJID, testStatusViewer, "status", &waE2E.Message{ReactionMessage: &waE2E.ReactionMessage{}}, true},
+		{"personal status message frame", types.StatusBroadcastJID, testStatusViewer, "message", content, true},
+		{"personal status reaction message frame", types.StatusBroadcastJID, testStatusViewer, "message", &waE2E.Message{ReactionMessage: &waE2E.ReactionMessage{}}, true},
 		{"group status", group, testStatusViewer, "status", &waE2E.Message{GroupStatusMessage: &waE2E.FutureProofMessage{Message: content}}, true},
 		{"group status reaction", group, testStatusViewer, "status", &waE2E.Message{ReactionMessage: &waE2E.ReactionMessage{}}, true},
 		{"ordinary group reaction", group, testStatusViewer, "message", &waE2E.Message{ReactionMessage: &waE2E.ReactionMessage{}}, false},
 		{"newsletter post", types.NewJID("120363000000000002", types.NewsletterServer), types.NewJID("120363000000000002", types.NewsletterServer), "status", content, false},
 	} {
-		evt := incoming(tt.chat, "G1", tt.msg)
+		evt := incoming(tt.stanzaTag, tt.chat, "G1", tt.msg)
 		evt.Info.Sender = tt.sender
-		evt.Info.StanzaTag = tt.stanzaTag
 		if got := isNonNewsletterStatusFrame(evt); got != tt.shouldDrop {
 			t.Errorf("%s: isNonNewsletterStatusFrame = %t, want %t", tt.name, got, tt.shouldDrop)
 		}
@@ -271,13 +276,13 @@ func TestKeyDistributionOnlyIsNotEmitted(t *testing.T) {
 	group := types.NewJID("120363000000000001", types.GroupServer)
 	skdm := &waE2E.SenderKeyDistributionMessage{GroupID: proto.String(group.String()), AxolotlSenderKeyDistributionMessage: []byte{1, 2, 3}}
 
-	s.handleMessageEvent("inst", instance, incoming(group, "K1", &waE2E.Message{SenderKeyDistributionMessage: skdm, MessageContextInfo: &waE2E.MessageContextInfo{}}), enabledWebhookEvents(instance.Webhook))
+	s.handleMessageEvent("inst", instance, incoming("message", group, "K1", &waE2E.Message{SenderKeyDistributionMessage: skdm, MessageContextInfo: &waE2E.MessageContextInfo{}}), enabledWebhookEvents(instance.Webhook))
 	if got := collect(); len(got) != 0 {
 		t.Fatalf("a sender key distribution reached the webhook: %v", got)
 	}
 
 	// With content next to it, the content is emitted as before.
-	s.handleMessageEvent("inst", instance, incoming(group, "K2", &waE2E.Message{SenderKeyDistributionMessage: skdm, Conversation: proto.String("oi")}), enabledWebhookEvents(instance.Webhook))
+	s.handleMessageEvent("inst", instance, incoming("message", group, "K2", &waE2E.Message{SenderKeyDistributionMessage: skdm, Conversation: proto.String("oi")}), enabledWebhookEvents(instance.Webhook))
 	got := collect()
 	if len(got) != 1 || path(got[0], "data", "messageType") != "conversation" {
 		t.Fatalf("webhooks = %v, want one conversation", got)
