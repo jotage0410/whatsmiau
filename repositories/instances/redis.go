@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/go-redis/redis/v8"
 	"github.com/verbeux-ai/whatsmiau/interfaces"
@@ -147,37 +148,48 @@ func (s *RedisInstance) Update(ctx context.Context, id string, toUpdate *models.
 }
 
 func (s *RedisInstance) List(ctx context.Context, id string) ([]models.Instance, error) {
-	var (
-		cursor uint64
-		keys   []string
-	)
-
-	pattern := "instance_"
-	if len(id) > 0 {
-		pattern = fmt.Sprintf("instance_%s", id)
+	var rawVals []any
+	if id != "" && !strings.ContainsAny(id, `*?[]\`) {
+		value, err := s.db.Get(ctx, s.key(id)).Result()
+		var serverError redis.Error
+		switch {
+		case errors.Is(err, redis.Nil):
+			return []models.Instance{}, nil
+		case errors.As(err, &serverError) && strings.HasPrefix(serverError.Error(), "WRONGTYPE "):
+			// MGET skips keys that contain a different Redis data type.
+			return nil, nil
+		case err != nil:
+			return nil, err
+		}
+		rawVals = []any{value}
 	} else {
-		pattern += "*"
-	}
+		pattern := s.key(id)
+		if id == "" {
+			pattern += "*"
+		}
 
-	for {
-		batch, newCursor, err := s.db.Scan(ctx, cursor, pattern, 100).Result()
+		var cursor uint64
+		var keys []string
+		for {
+			batch, newCursor, err := s.db.Scan(ctx, cursor, pattern, 100).Result()
+			if err != nil {
+				return nil, err
+			}
+			keys = append(keys, batch...)
+			cursor = newCursor
+			if cursor == 0 {
+				break
+			}
+		}
+		if len(keys) == 0 {
+			return []models.Instance{}, nil
+		}
+
+		var err error
+		rawVals, err = s.db.MGet(ctx, keys...).Result()
 		if err != nil {
 			return nil, err
 		}
-		keys = append(keys, batch...)
-		cursor = newCursor
-		if cursor == 0 {
-			break
-		}
-	}
-
-	if len(keys) == 0 {
-		return []models.Instance{}, nil
-	}
-
-	rawVals, err := s.db.MGet(ctx, keys...).Result()
-	if err != nil {
-		return nil, err
 	}
 
 	var instances []models.Instance
