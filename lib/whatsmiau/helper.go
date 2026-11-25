@@ -362,11 +362,18 @@ func canIgnoreMessage(msg *events.Message) bool {
 	if !strings.Contains(msg.Info.Chat.String(), "status") {
 		return false
 	}
-	return !(msg.Info.Chat == types.StatusBroadcastJID && msg.Message.GetReactionMessage() != nil)
+	return !(msg.Info.Chat == types.StatusBroadcastJID && isStatusReaction(msg))
+}
+
+func isStatusReaction(msg *events.Message) bool {
+	return msg != nil && msg.Message != nil && msg.Message.GetReactionMessage() != nil
 }
 
 func isNonNewsletterStatusFrame(msg *events.Message) bool {
-	return msg != nil && msg.Info.StanzaTag == "status" && msg.Info.Sender.Server != types.NewsletterServer
+	if msg == nil || msg.Info.StanzaTag != "status" || msg.Info.Sender.Server == types.NewsletterServer {
+		return false
+	}
+	return !isStatusReaction(msg)
 }
 
 // isKeyDistributionOnly reports whether a message only carries a sender key distribution (and its

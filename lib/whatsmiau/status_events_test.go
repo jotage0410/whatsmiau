@@ -97,7 +97,7 @@ func path(body map[string]any, keys ...string) any {
 // thing from that chat the webhook carries.
 func TestStatusReactionIsEmittedAsReactionMessage(t *testing.T) {
 	s, instance, collect := statusEventsHarness(t, "MESSAGES_UPSERT")
-	s.handleMessageEvent("inst", instance, incoming(types.StatusBroadcastJID, "A566", statusReaction(types.StatusBroadcastJID, "3EB0STATUS", "💚")), enabledWebhookEvents(instance.Webhook))
+	s.handleMessageEvent("inst", instance, incoming("status", types.StatusBroadcastJID, "A566", statusReaction(types.StatusBroadcastJID, "3EB0STATUS", "💚")), enabledWebhookEvents(instance.Webhook))
 
 	got := collect()
 	if len(got) != 1 {
@@ -128,7 +128,7 @@ func TestStatusReactionIsEmittedAsReactionMessage(t *testing.T) {
 func TestGroupStatusReactionIsEmittedAsReactionMessage(t *testing.T) {
 	s, instance, collect := statusEventsHarness(t, "MESSAGES_UPSERT")
 	group := types.NewJID("120363000000000001", types.GroupServer)
-	s.handleMessageEvent("inst", instance, incoming(group, "A50E", statusReaction(group, "3EB0GROUPSTATUS", "💚")), enabledWebhookEvents(instance.Webhook))
+	s.handleMessageEvent("inst", instance, incoming("status", group, "A50E", statusReaction(group, "3EB0GROUPSTATUS", "💚")), enabledWebhookEvents(instance.Webhook))
 
 	got := collect()
 	if len(got) != 1 || path(got[0], "data", "messageType") != "reactionMessage" {
@@ -208,13 +208,13 @@ func TestIncomingStatusFrames(t *testing.T) {
 		wantText  string
 	}{
 		{"contact-status", "status", false, "", ""},
-		{"contact-status-reaction", "status", false, "", ""},
+		{"contact-status-reaction", "status", false, "reactionMessage", ""},
 		{"contact-status-revoke", "status", false, "", ""},
 		{"contact-message-post", "message", true, "", ""},
 		{"contact-message-reaction", "message", true, "", ""},
 		{"contact-message-revoke", "message", false, "", ""},
 		{"group-status", "status", false, "", ""},
-		{"group-status-reaction", "status", false, "", ""},
+		{"group-status-reaction", "status", false, "reactionMessage", ""},
 		{"group-message", "message", true, "conversation", "oi"},
 		{"group-reaction", "message", true, "reactionMessage", "❤️"},
 		{"channel-post", "status", true, "conversation", "oi"},
@@ -284,8 +284,13 @@ func TestIncomingStatusFrames(t *testing.T) {
 					if len(got) != 1 || path(got[0], "event") != "messages.upsert" ||
 						path(got[0], "data", "messageType") != tt.wantType {
 						t.Errorf("readMessages=%t: expected one %s upsert, got %v", read, tt.wantType, got)
-					} else if tt.wantType == "reactionMessage" && path(got[0], "data", "message", "reactionMessage", "text") != tt.wantText {
-						t.Errorf("readMessages=%t: reaction text = %v, want %q", read, path(got[0], "data", "message", "reactionMessage", "text"), tt.wantText)
+					} else if tt.wantType == "reactionMessage" {
+						gotText, _ := path(got[0], "data", "message", "reactionMessage", "text").(string)
+						if gotText == "" {
+							t.Errorf("readMessages=%t: reaction text is empty", read)
+						} else if tt.wantText != "" && gotText != tt.wantText {
+							t.Errorf("readMessages=%t: reaction text = %q, want %q", read, gotText, tt.wantText)
+						}
 					} else if tt.wantType == "conversation" && path(got[0], "data", "message", "conversation") != tt.wantText {
 						t.Errorf("readMessages=%t: conversation = %v, want %q", read, path(got[0], "data", "message", "conversation"), tt.wantText)
 					}
@@ -309,11 +314,11 @@ func TestNonNewsletterStatusFrameClassification(t *testing.T) {
 		shouldDrop bool
 	}{
 		{"personal status", types.StatusBroadcastJID, testStatusViewer, "status", content, true},
-		{"personal status reaction", types.StatusBroadcastJID, testStatusViewer, "status", &waE2E.Message{ReactionMessage: &waE2E.ReactionMessage{}}, true},
+		{"personal status reaction", types.StatusBroadcastJID, testStatusViewer, "status", &waE2E.Message{ReactionMessage: &waE2E.ReactionMessage{}}, false},
 		{"personal status message frame", types.StatusBroadcastJID, testStatusViewer, "message", content, false},
 		{"personal status reaction message frame", types.StatusBroadcastJID, testStatusViewer, "message", &waE2E.Message{ReactionMessage: &waE2E.ReactionMessage{}}, false},
 		{"group status", group, testStatusViewer, "status", &waE2E.Message{GroupStatusMessage: &waE2E.FutureProofMessage{Message: content}}, true},
-		{"group status reaction", group, testStatusViewer, "status", &waE2E.Message{ReactionMessage: &waE2E.ReactionMessage{}}, true},
+		{"group status reaction", group, testStatusViewer, "status", &waE2E.Message{ReactionMessage: &waE2E.ReactionMessage{}}, false},
 		{"ordinary group reaction", group, testStatusViewer, "message", &waE2E.Message{ReactionMessage: &waE2E.ReactionMessage{}}, false},
 		{"newsletter post", types.NewJID("120363000000000002", types.NewsletterServer), types.NewJID("120363000000000002", types.NewsletterServer), "status", content, false},
 	} {

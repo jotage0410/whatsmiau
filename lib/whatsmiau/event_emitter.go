@@ -395,7 +395,7 @@ func (s *Whatsmiau) handleMessageEvent(id string, instance *models.Instance, e *
 		return
 	}
 
-	if e.Info.Chat == types.StatusBroadcastJID || canIgnoreGroup(e, instance) {
+	if canIgnoreMessage(e) || canIgnoreGroup(e, instance) {
 		return
 	}
 
