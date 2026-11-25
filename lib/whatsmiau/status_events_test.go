@@ -306,26 +306,26 @@ func TestNonNewsletterStatusFrameClassification(t *testing.T) {
 	group := types.NewJID("120363000000000001", types.GroupServer)
 	content := &waE2E.Message{Conversation: proto.String("oi")}
 	for _, tt := range []struct {
-		name       string
-		chat       types.JID
-		sender     types.JID
-		stanzaTag  string
-		msg        *waE2E.Message
-		shouldDrop bool
+		name          string
+		chat          types.JID
+		sender        types.JID
+		stanzaTag     string
+		msg           *waE2E.Message
+		isStatusFrame bool
 	}{
 		{"personal status", types.StatusBroadcastJID, testStatusViewer, "status", content, true},
-		{"personal status reaction", types.StatusBroadcastJID, testStatusViewer, "status", &waE2E.Message{ReactionMessage: &waE2E.ReactionMessage{}}, false},
+		{"personal status reaction", types.StatusBroadcastJID, testStatusViewer, "status", &waE2E.Message{ReactionMessage: &waE2E.ReactionMessage{}}, true},
 		{"personal status message frame", types.StatusBroadcastJID, testStatusViewer, "message", content, false},
 		{"personal status reaction message frame", types.StatusBroadcastJID, testStatusViewer, "message", &waE2E.Message{ReactionMessage: &waE2E.ReactionMessage{}}, false},
 		{"group status", group, testStatusViewer, "status", &waE2E.Message{GroupStatusMessage: &waE2E.FutureProofMessage{Message: content}}, true},
-		{"group status reaction", group, testStatusViewer, "status", &waE2E.Message{ReactionMessage: &waE2E.ReactionMessage{}}, false},
+		{"group status reaction", group, testStatusViewer, "status", &waE2E.Message{ReactionMessage: &waE2E.ReactionMessage{}}, true},
 		{"ordinary group reaction", group, testStatusViewer, "message", &waE2E.Message{ReactionMessage: &waE2E.ReactionMessage{}}, false},
 		{"newsletter post", types.NewJID("120363000000000002", types.NewsletterServer), types.NewJID("120363000000000002", types.NewsletterServer), "status", content, false},
 	} {
 		evt := incoming(tt.stanzaTag, tt.chat, "G1", tt.msg)
 		evt.Info.Sender = tt.sender
-		if got := isNonNewsletterStatusFrame(evt); got != tt.shouldDrop {
-			t.Errorf("%s: isNonNewsletterStatusFrame = %t, want %t", tt.name, got, tt.shouldDrop)
+		if got := isNonNewsletterStatusFrame(evt); got != tt.isStatusFrame {
+			t.Errorf("%s: isNonNewsletterStatusFrame = %t, want %t", tt.name, got, tt.isStatusFrame)
 		}
 	}
 }
