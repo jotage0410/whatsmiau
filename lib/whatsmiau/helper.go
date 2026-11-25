@@ -365,6 +365,10 @@ func canIgnoreMessage(msg *events.Message) bool {
 	return !(msg.Info.Chat == types.StatusBroadcastJID && msg.Message.GetReactionMessage() != nil)
 }
 
+func isNonNewsletterStatusFrame(msg *events.Message) bool {
+	return msg != nil && msg.Info.StanzaTag == "status" && msg.Info.Sender.Server != types.NewsletterServer
+}
+
 // isKeyDistributionOnly reports whether a message only carries a sender key distribution (and its
 // context info). whatsmeow emits it as a message of its own when a group stanza brings the sender
 // key along with the content, which arrives in a second message; it has nothing to show.
@@ -446,8 +450,17 @@ func canIgnoreGroup(evt interface{}, instance *models.Instance) bool {
 	return strings.HasSuffix(jid, "@g.us")
 }
 
-func configProxy(client *whatsmeow.Client, instanceProxy models.InstanceProxy) {
+func configProxy(client *whatsmeow.Client, instanceID string, instanceProxy models.InstanceProxy) {
 	if len(instanceProxy.ProxyHost) <= 0 {
+		return
+	}
+
+	if transport := managedProxyTransport(instanceID, instanceProxy, env.Env.ManagedProxyEndpoint, env.Env.ManagedProxyScope); transport != nil {
+		client.SetPreLoginHTTPClient(&http.Client{Transport: transport})
+		client.SetWebsocketHTTPClient(&http.Client{Transport: transport})
+		if !env.Env.ProxyNoMedia {
+			client.SetMediaHTTPClient(&http.Client{Transport: transport})
+		}
 		return
 	}
 
